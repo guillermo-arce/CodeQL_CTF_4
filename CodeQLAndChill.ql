@@ -99,11 +99,11 @@ class TaintTracking_ConstraintValidator extends TaintTracking::Configuration {
     }
 }
 
-/* 
-from TaintTracking_ConstraintValidator cfg, DataFlow::PathNode source, DataFlow::PathNode sink
-where cfg.hasFlowPath(source, sink)
-select sink, source, sink, "Custom constraint error message contains unsanitized user data"
- */
+
+// from TaintTracking_ConstraintValidator cfg, DataFlow::PathNode source, DataFlow::PathNode sink
+// where cfg.hasFlowPath(source, sink) 
+// select source, sink, "Custom constraint error message contains unsanitized user data"
+
 
 /* 
 --------------------- Step 1.4: Partial Flow to the rescue ---------------------
@@ -134,15 +134,19 @@ TaintTracking_ConstraintValidator_Debug() { this = "TaintTracking_ConstraintVali
 class NodeToDebug extends DataFlow::Node{
     NodeToDebug(){
         isSource_defined(this)
-        and this.toString() = "container"
+        and this.getLocation().toString() = "SchedulingConstraintValidator:72"
+        //SpELClassValidator:64
+        //CollectionValidator:40
+        //SchedulingConstraintValidator:72
+        //SchedulingConstraintSetValidator:56
     }
 }
 
-from TaintTracking_ConstraintValidator_Debug cfg, DataFlow::PartialPathNode source, DataFlow::PartialPathNode sink
-where
-  cfg.hasPartialFlow(source, sink, _) 
-  and source.getNode() instanceof  NodeToDebug
-select source, sink, "Partial flow from unsanitized user data"
+// from TaintTracking_ConstraintValidator_Debug cfg, DataFlow::PartialPathNode source, DataFlow::PartialPathNode sink
+// where
+//   cfg.hasPartialFlow(source, sink, _) 
+//   and source.getNode() instanceof  NodeToDebug
+// select source, sink, "Partial flow from unsanitized user data"
 
 
 
@@ -162,14 +166,45 @@ container.getSoftConstraints. Can you guess why this default behaviour was imple
 
 */
 
-//Need to fix this class, not working properly. 
-
 class AddingTaintSteps extends TaintTracking::AdditionalTaintStep{
-    override predicate step(DataFlow::Node node1, DataFlow::Node node2){
-        exists(MethodAccess ma | 
-            ma.getQualifier() = node1.asExpr()
-            and 
-            ma.getType() = node2.asExpr().getEnclosingCallable().getReturnType() 
+    override predicate step(DataFlow::Node src, DataFlow::Node sink){
+        exists(MethodAccess ma |
+            (ma.getMethod().getName()="getSoftConstraints" or 
+                ma.getMethod().getName()="getHardConstraints"
+                or ma.getMethod().getName()="keySet"
+                    or ma.getMethod().getName()="stream"
+                        or ma.getMethod().getName()="map"
+                            or ma.getMethod().getName()="collect")
+            and src.asExpr() = ma.getQualifier()
+            and sink.asExpr() = ma  
         )
     }
 }
+
+class AddingTaintSteps_HashSet extends TaintTracking::AdditionalTaintStep {
+override predicate step(DataFlow::Node src, DataFlow::Node sink) {
+        exists(ConstructorCall cs |
+            cs.getConstructedType().getCompilationUnit().getName()="HashSet"
+            and src.asExpr() = cs.getAnArgument() 
+            and sink.asExpr() = cs 
+        )
+    }
+}
+
+/* class AddingTaintSteps_TryCatch extends TaintTracking::AdditionalTaintStep {
+override predicate step(DataFlow::Node src, DataFlow::Node sink) {
+        exists(TryStmt ts, MethodAccess ma1, MethodAccess ma2|
+            ma1.get
+            and ma.getMethod().getName() = "getMessage"
+            and ma.getBasicBlock() = ts.getACatchClause().getBasicBlock()
+            and sink.asExpr() = ma
+        )
+    }
+} */
+
+
+
+/* from CatchClause cc, MethodAccess ma
+where ma.getMethod().getName()="getMessage" and ma.getBasicBlock() = cc.getBasicBlock()
+select ma,cc,ma.getBasicBlock(),cc.getBasicBlock()
+ */
