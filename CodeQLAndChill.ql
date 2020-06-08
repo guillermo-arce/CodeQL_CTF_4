@@ -6,6 +6,8 @@
 import java
 import semmle.code.java.dataflow.DataFlow
 import semmle.code.java.dataflow.FlowSources
+import semmle.code.java.dataflow.TaintTracking
+import DataFlow::PathGraph //Conflict with PartialPathGraph
 
 
 // --------------------- SOURCE --------------------- 
@@ -66,21 +68,20 @@ ConstraintValidatorContext(){
 import semmle.code.java.dataflow.TaintTracking
 import DataFlow::PathGraph //Conflict with PartialPathGraph
 
-class TaintTracking_ConstraintValidator extends TaintTracking::Configuration {
-    TaintTracking_ConstraintValidator() { this = "TaintTracking_ConstraintValidator" }
-
+class ConstraintValidator_Config extends TaintTracking::Configuration {
+    ConstraintValidator_Config() { this = "ConstraintValidator_Config" }
+    
     override predicate isSource(DataFlow::Node source) { 
         isSource_definition(source)
     }
-
     override predicate isSink(DataFlow::Node sink) { 
         isSink_definition(sink)
     }
 }
 
-from TaintTracking_ConstraintValidator cfg, DataFlow::PathNode source, DataFlow::PathNode sink
-where cfg.hasFlowPath(source, sink) 
-select source, sink, "Custom constraint error message contains unsanitized user data"
+from ConstraintValidator_Config cfg, DataFlow::PathNode source, DataFlow::PathNode sink
+where cfg.hasFlowPath(source, sink)
+select sink, source, sink, "Custom constraint error message contains unsanitized user data"
 
 
 // --------------------- ADDITIONAL TAINT STEPS ---------------------
@@ -98,17 +99,17 @@ override predicate step(DataFlow::Node src, DataFlow::Node sink){
         and src.asExpr() = ma.getQualifier()
         and sink.asExpr() = ma  
     )
-}
+    }
 }
 /** Step for constructor of HashSet */
 class AddingTaintSteps_HashSet extends TaintTracking::AdditionalTaintStep {
-override predicate step(DataFlow::Node src, DataFlow::Node sink) {
-    exists(ConstructorCall cs |
-        cs.getConstructedType().getCompilationUnit().getName()="HashSet"
-        and src.asExpr() = cs.getAnArgument() 
-        and sink.asExpr() = cs 
-    )
-}
+    override predicate step(DataFlow::Node src, DataFlow::Node sink) {
+        exists(ConstructorCall cs |
+            cs.getConstructedType().getCompilationUnit().getName()="HashSet"
+            and src.asExpr() = cs.getAnArgument() 
+            and sink.asExpr() = cs 
+        )
+    }
 }
 /** Step for try catch */
 class AddingTaintSteps_TryCatch extends TaintTracking::AdditionalTaintStep {
@@ -126,7 +127,7 @@ override predicate step(DataFlow::Node src, DataFlow::Node sink) {
         and sink.asExpr() = ma2.getAnArgument() //Intuitivelly I would say it is sink.asExpr() = ma2 in order to show the call as a taint,
                                                 //but I am getting 0 results when I do it.
     )
-}
+    }
 }
 
 /** Auxiliary class for getting the Logger class */
@@ -158,8 +159,8 @@ select ts,src,sink */
 
 import DataFlow::PartialPathGraph
 
-class TaintTracking_ConstraintValidator_Debug extends TaintTracking::Configuration {
-TaintTracking_ConstraintValidator_Debug() { this = "TaintTracking_ConstraintValidator_Debug" }
+class ConstraintValidator_Config_Debug extends TaintTracking::Configuration {
+    ConstraintValidator_Config_Debug() { this = "ConstraintValidator_Config_Debug" }
 
     override predicate isSource(DataFlow::Node source) { 
         isSource_definition(source)(source)
@@ -181,9 +182,9 @@ class NodeToDebug extends DataFlow::Node{
     }
 }
 
-/* from TaintTracking_ConstraintValidator_Debug cfg, DataFlow::PartialPathNode source, DataFlow::PartialPathNode sink
+/* from ConstraintValidator_Config_Debug cfg, DataFlow::PartialPathNode source, DataFlow::PartialPathNode sink
 where
   cfg.hasPartialFlow(source, sink, _) 
   and source.getNode() instanceof  NodeToDebug
-select source, sink, "Partial flow from unsanitized user data" */
+select sink, source, sink, "Partial flow from unsanitized user data" */
 
